@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-dotenv
+openai
+pydantic
+python-multipart
+yt-dlp
+youtube-transcript-api>=1.0.0,<2
+trafilatura>=1.6.0
