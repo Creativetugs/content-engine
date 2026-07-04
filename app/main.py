@@ -29,12 +29,16 @@ logger = logging.getLogger("content_engine")
 @app.get("/health")
 def health():
     """Verify API and critical YouTube caption imports (catches bad deploys early)."""
-    from app.youtube_transcript import get_youtube_proxy_mode
+    from app.youtube_transcript import get_youtube_proxy_diagnostics, get_youtube_proxy_mode
+
+    proxy_mode = get_youtube_proxy_mode()
+    proxy_env = get_youtube_proxy_diagnostics()
 
     payload: dict = {
         "ok": True,
-        "version": "1.7.2",
-        "youtube_proxy": get_youtube_proxy_mode(),
+        "version": "1.7.3",
+        "youtube_proxy": proxy_mode,
+        "proxy_env": proxy_env,
     }
     try:
         from app.youtube import fetch_youtube_oembed  # noqa: F401
@@ -47,11 +51,19 @@ def health():
     except ImportError as exc:
         payload["ok"] = False
         payload["youtube_captions"] = str(exc)
-    if payload["youtube_proxy"] == "none":
-        payload["youtube_proxy_hint"] = (
-            "Set CE_WEBSHARE_PROXY_USERNAME and CE_WEBSHARE_PROXY_PASSWORD on Railway "
-            "(rotating residential — not free/datacenter tier)."
-        )
+    if proxy_mode == "none":
+        if not proxy_env.get("webshare_username_set") and not proxy_env.get("webshare_password_set"):
+            payload["youtube_proxy_hint"] = (
+                "Railway is not receiving proxy env vars. On the web service (not Postgres), "
+                "add CE_WEBSHARE_PROXY_USERNAME + CE_WEBSHARE_PROXY_PASSWORD, then Redeploy. "
+                "Or set CE_YTDLP_PROXY=http://USER:PASS@p.webshare.io:80"
+            )
+        elif not proxy_env.get("webshare_password_set"):
+            payload["youtube_proxy_hint"] = "CE_WEBSHARE_PROXY_USERNAME is set but PASSWORD is missing or empty."
+        elif not proxy_env.get("webshare_username_set"):
+            payload["youtube_proxy_hint"] = "CE_WEBSHARE_PROXY_PASSWORD is set but USERNAME is missing or empty."
+        else:
+            payload["youtube_proxy_hint"] = "Proxy env vars are set but mode is still none — check for typos in variable names."
     return payload
 
 
@@ -138,6 +150,42 @@ def _build_response(
     return response
 
 
+_WP_TO_INTERNAL = {
+    "blog": "blog",
+    "linkedin_posts": "linkedin",
+    "email_newsletter": "email",
+    "shorts": "shorts",
+    "carousel": "carousel",
+    "seo_pack": "seo_pack",
+    "community_snippet": "community_snippet",
+}
+
+
+def _wp_payload_to_content(payload: dict) -> dict:
+    content: dict = {}
+    for wp_key, internal_key in _WP_TO_INTERNAL.items():
+        if wp_key in payload and payload[wp_key]:
+            content[internal_key] = payload[wp_key]
+    return content
+
+
+def _outputs_from_wp_payload(payload: dict) -> list[str]:
+    outputs = [internal for wp_key, internal in _WP_TO_INTERNAL.items() if wp_key in payload]
+    return outputs or ["blog"]
+
+
+def _apply_visuals_to_wp_payload(payload: dict, content: dict) -> dict:
+    updated = dict(payload)
+    for wp_key, internal_key in _WP_TO_INTERNAL.items():
+        if internal_key in content:
+            updated[wp_key] = content[internal_key]
+    if content.get("visuals"):
+        updated["visuals"] = content["visuals"]
+    if content.get("social_graphics"):
+        updated["social_graphics"] = content["social_graphics"]
+    return updated
+
+
 class ExportRequest(BaseModel):
     blocks: list[dict]
     brand: dict | None = None
@@ -164,6 +212,11 @@ class RegenerateVisualRequest(BaseModel):
     asset: dict
     brand: dict | None = None
     prompt: str | None = None
+
+
+class GenerateVisualsRequest(BaseModel):
+    """WordPress payload from step 1 — visuals generated in a separate request."""
+    payload: dict
 
 
 class RegenerateContentRequest(BaseModel):
@@ -202,6 +255,51 @@ def regenerate_visual(request: Request, payload: RegenerateVisualRequest):
     except ValueError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return {"asset": asset}
+
+
+@app.post("/visuals/generate")
+def generate_visuals_batch(request: Request, body: GenerateVisualsRequest):
+    """Generate AI visuals for an existing content payload (step 2 after /repurpose)."""
+    from app.blocks import normalize_blocks
+    from app.visual_layer import run_visual_pipeline
+
+    wp_payload = body.payload
+    if not isinstance(wp_payload, dict) or not wp_payload:
+        raise HTTPException(status_code=400, detail="payload is required.")
+
+    content = _wp_payload_to_content(wp_payload)
+    if not content:
+        raise HTTPException(status_code=400, detail="No content in payload to attach visuals to.")
+
+    brand_data = wp_payload.get("brand") if isinstance(wp_payload.get("brand"), dict) else {}
+    try:
+        settings = BrandSettings(
+            tone=brand_data.get("tone", "Professional"),
+            industry=brand_data.get("industry", "General"),
+            brand_primary=brand_data.get("brand_primary", "#002a65"),
+            brand_secondary=brand_data.get("brand_secondary", "#56814f"),
+            audience=brand_data.get("audience", "General audience"),
+            writing_style=brand_data.get("writing_style", "Educational"),
+            outputs=_outputs_from_wp_payload(wp_payload),
+            cta_style=brand_data.get("cta_style", "Direct"),
+        )
+    except (ValidationError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    base_url = str(request.base_url).rstrip("/")
+    t0 = time.perf_counter()
+    try:
+        run_visual_pipeline(content, settings, base_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Visual generation failed: {exc}") from exc
+
+    if content.get("blog", {}).get("content_blocks"):
+        content["blog"]["content_blocks"] = normalize_blocks(content["blog"]["content_blocks"])
+
+    logger.info("Visuals generated in %.1fs (separate /visuals/generate call)", time.perf_counter() - t0)
+    return _apply_visuals_to_wp_payload(wp_payload, content)
 
 
 @app.post("/regenerate")
