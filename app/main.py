@@ -677,8 +677,6 @@ def generate_idea(request: Request, payload: GenerateIdeaRequest):
             indent=4,
         )
 
-        )
-
     result = _build_response(filename, idea, structured_content, settings, source)
     if licensing_enabled():
         result["license_usage"] = _license_guard(key, increment=True)
