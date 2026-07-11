@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Content Engine — Client Admin</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --panel2: #243044;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --border: #2d3a4f;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 24px 20px 48px; }
+    h1 { margin: 0 0 4px; font-size: 1.6rem; }
+    .subtitle { color: var(--muted); margin: 0 0 24px; }
+    .login-card, .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+    .login-card { max-width: 420px; margin: 80px auto; }
+    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
+    input, select, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel2);
+      color: var(--text);
+      font: inherit;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    .field { margin-bottom: 14px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+    .row .field { flex: 1; min-width: 160px; }
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      background: var(--primary);
+      color: #fff;
+    }
+    button:hover { background: var(--primary-hover); }
+    button.ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+    button.danger { background: var(--danger); }
+    button.small { padding: 6px 10px; font-size: 0.82rem; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+    }
+    .stat strong { display: block; font-size: 1.5rem; }
+    .stat span { color: var(--muted); font-size: 0.85rem; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge.ok { background: rgba(34,197,94,0.15); color: var(--success); }
+    .badge.warn { background: rgba(245,158,11,0.15); color: var(--warning); }
+    .badge.off { background: rgba(139,156,179,0.15); color: var(--muted); }
+    .badge.full { background: rgba(239,68,68,0.15); color: var(--danger); }
+    .bar {
+      height: 6px;
+      background: var(--panel2);
+      border-radius: 999px;
+      overflow: hidden;
+      min-width: 80px;
+    }
+    .bar > span {
+      display: block;
+      height: 100%;
+      background: var(--primary);
+      border-radius: 999px;
+    }
+    .bar.full > span { background: var(--danger); }
+    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .hidden { display: none !important; }
+    .error { color: var(--danger); font-size: 0.9rem; margin-top: 8px; }
+    .modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px; z-index: 100;
+    }
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      width: min(520px, 100%);
+      padding: 22px;
+    }
+    .modal h2 { margin: 0 0 16px; font-size: 1.15rem; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+    .check-row { display: flex; align-items: center; gap: 8px; }
+    .check-row input { width: auto; }
+    code { background: var(--panel2); padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+    .foot { margin-top: 20px; color: var(--muted); font-size: 0.82rem; }
+  </style>
+</head>
+<body>
+  <div id="login-view" class="wrap">
+    <div class="login-card">
+      <h1>Content Engine Admin</h1>
+      <p class="subtitle">Creative Tugs — client licenses &amp; usage</p>
+      <div class="field">
+        <label for="admin-secret">Admin API Secret</label>
+        <input type="password" id="admin-secret" placeholder="CE_ADMIN_SECRET from Railway" autocomplete="off" />
+      </div>
+      <button type="button" id="btn-login">Sign in</button>
+      <p class="error hidden" id="login-error"></p>
+      <p class="foot">Set <code>CE_ADMIN_SECRET</code> on Railway first. Usage data lives in <code>data/</code> — use a Railway volume so counts survive redeploys.</p>
+    </div>
+  </div>
+
+  <div id="app-view" class="wrap hidden">
+    <div class="toolbar">
+      <div>
+        <h1>Client Dashboard</h1>
+        <p class="subtitle">Manage license keys, monthly project limits, and usage resets</p>
+      </div>
+      <div class="row">
+        <button type="button" class="ghost" id="btn-refresh">Refresh</button>
+        <button type="button" id="btn-add-client">+ Add client</button>
+        <button type="button" class="ghost" id="btn-logout">Sign out</button>
+      </div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="card">
+      <div class="toolbar">
+        <strong>Clients — <span id="month-label"></span></strong>
+        <button type="button" class="danger small" id="btn-reset-all">Reset all usage</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th>License key</th>
+              <th>Usage</th>
+              <th>Visuals</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="client-rows">
+            <tr><td colspan="6">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="foot" id="meta-foot"></p>
+    </div>
+  </div>
+
+  <div id="modal" class="modal-backdrop hidden">
+    <div class="modal" role="dialog">
+      <h2 id="modal-title">Add client</h2>
+      <div class="field">
+        <label for="f-key">License key</label>
+        <input id="f-key" placeholder="CE-PHILTECH-001" />
+      </div>
+      <div class="field">
+        <label for="f-label">Client name</label>
+        <input id="f-label" placeholder="Philtech" />
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="f-limit">Projects / month</label>
+          <input id="f-limit" type="number" min="0" max="999" value="6" />
+        </div>
+        <div class="field">
+          <label for="f-price">Plan price (optional)</label>
+          <input id="f-price" placeholder="$100/mo" />
+        </div>
+      </div>
+      <div class="row">
+        <label class="check-row"><input type="checkbox" id="f-visuals" checked /> AI visuals allowed</label>
+        <label class="check-row"><input type="checkbox" id="f-active" checked /> Active</label>
+      </div>
+      <div class="field">
+        <label for="f-notes">Notes (internal)</label>
+        <textarea id="f-notes" placeholder="Contact email, deal notes…"></textarea>
+      </div>
+      <p class="error hidden" id="modal-error"></p>
+      <div class="modal-actions">
+        <button type="button" class="ghost" id="btn-modal-cancel">Cancel</button>
+        <button type="button" id="btn-modal-save">Save client</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'ce_admin_secret';
+    let editingKey = null;
+
+    function secret() {
+      return sessionStorage.getItem(STORAGE_KEY) || '';
+    }
+
+    function headers() {
+      return {
+        'Content-Type': 'application/json',
+        'X-CE-Admin-Secret': secret(),
+      };
+    }
+
+    async function api(path, options = {}) {
+      const res = await fetch(path, {
+        ...options,
+        headers: { ...headers(), ...(options.headers || {}) },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || data.message || res.statusText || 'Request failed');
+      }
+      return data;
+    }
+
+    function showLogin(err) {
+      document.getElementById('login-view').classList.remove('hidden');
+      document.getElementById('app-view').classList.add('hidden');
+      const el = document.getElementById('login-error');
+      if (err) {
+        el.textContent = err;
+        el.classList.remove('hidden');
+      } else {
+        el.classList.add('hidden');
+      }
+    }
+
+    function showApp() {
+      document.getElementById('login-view').classList.add('hidden');
+      document.getElementById('app-view').classList.remove('hidden');
+    }
+
+    function pct(used, limit) {
+      if (!limit) return 0;
+      return Math.min(100, Math.round((used / limit) * 100));
+    }
+
+    function renderStats(data) {
+      document.getElementById('stats').innerHTML = `
+        <div class="stat"><strong>${data.client_count}</strong><span>Total clients</span></div>
+        <div class="stat"><strong>${data.active_count}</strong><span>Active</span></div>
+        <div class="stat"><strong>${data.total_projects_used}</strong><span>Projects used (${data.month})</span></div>
+        <div class="stat"><strong>${data.licensing_enabled ? 'On' : 'Off'}</strong><span>Licensing</span></div>
+      `;
+      document.getElementById('month-label').textContent = data.month;
+      document.getElementById('meta-foot').textContent =
+        `Catalog: ${data.catalog_source} · ${data.catalog_path} · ${data.usage_path}`;
+    }
+
+    function renderClients(data) {
+      const tbody = document.getElementById('client-rows');
+      if (!data.clients.length) {
+        tbody.innerHTML = '<tr><td colspan="6">No clients yet. Add Philtech or click + Add client.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.clients.map((c) => {
+        const p = pct(c.projects_used, c.max_projects_month);
+        const barClass = c.limit_reached ? 'bar full' : 'bar';
+        const status = !c.active
+          ? '<span class="badge off">Inactive</span>'
+          : c.limit_reached
+          ? '<span class="badge full">Limit reached</span>'
+          : '<span class="badge ok">Active</span>';
+        const visuals = c.visuals_allowed
+          ? '<span class="badge ok">Yes</span>'
+          : '<span class="badge off">No</span>';
+        return `<tr>
+          <td><strong>${esc(c.label || '—')}</strong>${c.plan_price ? `<br><span style="color:var(--muted);font-size:0.82rem">${esc(c.plan_price)}</span>` : ''}</td>
+          <td><code>${esc(c.license_key)}</code></td>
+          <td>
+            <div>${c.projects_used} / ${c.max_projects_month || '∞'} <span style="color:var(--muted)">(${c.projects_remaining} left)</span></div>
+            <div class="${barClass}"><span style="width:${p}%"></span></div>
+          </td>
+          <td>${visuals}</td>
+          <td>${status}</td>
+          <td class="actions">
+            <button class="small ghost" data-edit="${esc(c.license_key)}">Edit</button>
+            <button class="small" data-reset="${esc(c.license_key)}">Reset</button>
+            <button class="small ghost" data-set="${esc(c.license_key)}" data-used="${c.projects_used}">Set #</button>
+            <button class="small danger" data-del="${esc(c.license_key)}">Deactivate</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    function esc(s) {
+      return String(s || '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[ch]);
+    }
+
+    async function loadDashboard() {
+      const data = await api('/admin/overview');
+      renderStats(data);
+      renderClients(data);
+    }
+
+    function openModal(client) {
+      editingKey = client ? client.license_key : null;
+      document.getElementById('modal-title').textContent = client ? 'Edit client' : 'Add client';
+      document.getElementById('f-key').value = client ? client.license_key : '';
+      document.getElementById('f-key').disabled = !!client;
+      document.getElementById('f-label').value = client ? (client.label || '') : '';
+      document.getElementById('f-limit').value = client ? client.max_projects_month : 6;
+      document.getElementById('f-price').value = client ? (client.plan_price || '') : '';
+      document.getElementById('f-visuals').checked = client ? client.visuals_allowed : true;
+      document.getElementById('f-active').checked = client ? client.active : true;
+      document.getElementById('f-notes').value = client ? (client.notes || '') : '';
+      document.getElementById('modal-error').classList.add('hidden');
+      document.getElementById('modal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.add('hidden');
+      editingKey = null;
+    }
+
+    document.getElementById('btn-login').addEventListener('click', async () => {
+      const val = document.getElementById('admin-secret').value.trim();
+      if (!val) return;
+      sessionStorage.setItem(STORAGE_KEY, val);
+      try {
+        await loadDashboard();
+        showApp();
+      } catch (e) {
+        sessionStorage.removeItem(STORAGE_KEY);
+        showLogin(e.message);
+      }
+    });
+
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      sessionStorage.removeItem(STORAGE_KEY);
+      showLogin();
+    });
+
+    document.getElementById('btn-refresh').addEventListener('click', () => loadDashboard().catch((e) => alert(e.message)));
+    document.getElementById('btn-add-client').addEventListener('click', () => openModal(null));
+    document.getElementById('btn-modal-cancel').addEventListener('click', closeModal);
+    document.getElementById('btn-reset-all').addEventListener('click', async () => {
+      if (!confirm('Reset usage for ALL clients this month?')) return;
+      await api('/admin/clients/reset-all', { method: 'POST', body: '{}' });
+      await loadDashboard();
+    });
+
+    document.getElementById('btn-modal-save').addEventListener('click', async () => {
+      const body = {
+        license_key: document.getElementById('f-key').value.trim().toUpperCase(),
+        label: document.getElementById('f-label').value.trim(),
+        max_projects_month: parseInt(document.getElementById('f-limit').value, 10) || 0,
+        plan_price: document.getElementById('f-price').value.trim(),
+        visuals_allowed: document.getElementById('f-visuals').checked,
+        active: document.getElementById('f-active').checked,
+        notes: document.getElementById('f-notes').value.trim(),
+      };
+      const err = document.getElementById('modal-error');
+      try {
+        await api('/admin/clients', { method: 'POST', body: JSON.stringify(body) });
+        closeModal();
+        await loadDashboard();
+      } catch (e) {
+        err.textContent = e.message;
+        err.classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('client-rows').addEventListener('click', async (ev) => {
+      const t = ev.target.closest('button');
+      if (!t) return;
+      const data = await api('/admin/overview');
+      const key = t.dataset.edit || t.dataset.reset || t.dataset.set || t.dataset.del;
+      const client = data.clients.find((c) => c.license_key === key);
+
+      if (t.dataset.edit) return openModal(client);
+      if (t.dataset.reset) {
+        if (!confirm(`Reset usage for ${key}?`)) return;
+        await api(`/admin/clients/${encodeURIComponent(key)}/reset`, { method: 'POST', body: '{}' });
+        return loadDashboard();
+      }
+      if (t.dataset.set) {
+        const n = prompt(`Set projects used for ${key} (current: ${t.dataset.used}):`, t.dataset.used);
+        if (n === null) return;
+        await api(`/admin/clients/${encodeURIComponent(key)}/usage`, {
+          method: 'POST',
+          body: JSON.stringify({ projects_used: parseInt(n, 10) || 0 }),
+        });
+        return loadDashboard();
+      }
+      if (t.dataset.del) {
+        if (!confirm(`Deactivate ${key}? Client plugin will stop working.`)) return;
+        await api(`/admin/clients/${encodeURIComponent(key)}`, { method: 'DELETE' });
+        return loadDashboard();
+      }
+    });
+
+    if (secret()) {
+      loadDashboard().then(showApp).catch(() => showLogin());
+    } else {
+      showLogin();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Engine — Demo</title>
+  <style>
+    :root {
+      --primary: #002a65;
+      --secondary: #56814f;
+      --bg: #f4f6f9;
+      --card: #fff;
+      --text: #1d2327;
+      --muted: #646970;
+      --border: #dcdcde;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .header {
+      background: var(--primary);
+      color: #fff;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .header h1 { margin: 0; font-size: 1.4rem; }
+    .header p { margin: 4px 0 0; opacity: .85; font-size: .9rem; }
+    .status { display: flex; align-items: center; gap: 8px; font-size: .85rem; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #dba617; }
+    .dot.ok { background: #00a32a; }
+    .dot.err { background: #d63638; }
+    .layout {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card h2 { margin: 0 0 12px; font-size: 1rem; color: var(--primary); }
+    label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 4px; }
+    input[type=text], input[type=url], textarea, select {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: .9rem;
+      margin-bottom: 12px;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 12px; }
+    .tab {
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: .85rem;
+    }
+    .tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .pane { display: none; }
+    .pane.active { display: block; }
+    .outputs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .outputs label {
+      display: flex; align-items: center; gap: 8px;
+      font-weight: normal; margin: 0; padding: 6px 8px;
+      border: 1px solid var(--border); border-radius: 6px; cursor: pointer;
+    }
+    .btn {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+    }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn:hover:not(:disabled) { background: #003d8f; }
+    .status-msg { font-size: .85rem; color: var(--muted); margin-top: 8px; min-height: 1.2em; }
+    .error { color: #d63638; background: #fcf0f1; padding: 10px; border-radius: 6px; margin-top: 10px; display: none; }
+    .preview-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 12px; }
+    .preview-tab {
+      padding: 6px 12px; border: 1px solid var(--border);
+      background: #fff; border-radius: 6px; cursor: pointer; font-size: .8rem;
+    }
+    .preview-tab.active { background: var(--secondary); color: #fff; border-color: var(--secondary); }
+    .preview-pane { display: none; }
+    .preview-pane.active { display: block; }
+    .article h1 { color: var(--primary); font-size: 1.6rem; }
+    .article h2 { color: var(--primary); font-size: 1.2rem; margin-top: 1.2em; }
+    .article p { margin: 0 0 1em; }
+    .article ul { margin: 0 0 1em 1.2em; }
+    .cta-btn {
+      display: inline-block; background: var(--secondary); color: #fff;
+      padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600;
+    }
+    .snippet-box {
+      border-left: 4px solid var(--secondary);
+      padding: 12px 16px; background: #f8faf8; border-radius: 0 6px 6px 0;
+    }
+    .meta { font-size: .8rem; color: var(--muted); }
+    .color-row { display: flex; gap: 12px; }
+    .color-row input[type=color] { width: 48px; height: 36px; padding: 2px; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div>
+      <h1>Content Engine</h1>
+      <p>Turn ideas, videos, and articles into blog, social, email &amp; community content</p>
+    </div>
+    <div class="status">
+      <span class="dot" id="api-dot"></span>
+      <span id="api-status">Checking API…</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <div class="card">
+        <h2>Brand Settings</h2>
+        <label for="tone">Tone</label>
+        <select id="tone">
+          <option>Professional</option>
+          <option>Supportive</option>
+          <option>Casual</option>
+          <option>Authoritative</option>
+        </select>
+        <label for="industry">Industry</label>
+        <input type="text" id="industry" value="General">
+        <label for="audience">Audience</label>
+        <input type="text" id="audience" value="General audience">
+        <div class="color-row">
+          <div><label>Primary</label><input type="color" id="brand-primary" value="#002a65"></div>
+          <div><label>Secondary</label><input type="color" id="brand-secondary" value="#56814f"></div>
+        </div>
+        <label for="cta-style">CTA Style</label>
+        <select id="cta-style">
+          <option>Direct</option>
+          <option>Supportive</option>
+          <option>Educational</option>
+        </select>
+      </div>
+      <div class="card">
+        <h2>Outputs</h2>
+        <div class="outputs" id="output-checks"></div>
+        <label style="margin-top:12px;display:flex;align-items:center;gap:8px;font-weight:normal">
+          <input type="checkbox" id="generate-visuals"> AI visuals (slower)
+        </label>
+      </div>
+    </aside>
+
+    <main>
+      <div class="card">
+        <h2>Create Content</h2>
+        <div class="tabs" id="source-tabs">
+          <button type="button" class="tab active" data-source="idea">AI Idea</button>
+          <button type="button" class="tab" data-source="youtube">YouTube / Video</button>
+          <button type="button" class="tab" data-source="blog">Blog URL</button>
+          <button type="button" class="tab" data-source="file">Upload File</button>
+        </div>
+
+        <div class="pane active" id="pane-idea">
+          <label for="idea-text">Describe your content idea</label>
+          <textarea id="idea-text" placeholder="e.g. Write a blog about 5 smart ways to repurpose one podcast into blog posts, LinkedIn content, and email newsletters for a finance brand."></textarea>
+        </div>
+        <div class="pane" id="pane-youtube">
+          <label for="youtube-url">Video URL (YouTube, Vimeo, Loom)</label>
+          <input type="url" id="youtube-url" placeholder="https://www.youtube.com/watch?v=...">
+        </div>
+        <div class="pane" id="pane-blog">
+          <label for="blog-url">Blog / article URL</label>
+          <input type="url" id="blog-url" placeholder="https://yoursite.com/blog/your-article/">
+        </div>
+        <div class="pane" id="pane-file">
+          <label for="file-input">Audio or video file</label>
+          <input type="file" id="file-input" accept="audio/*,video/*,.mp3,.mp4,.wav,.m4a">
+        </div>
+
+        <button type="button" class="btn" id="generate-btn">Generate Content</button>
+        <p class="status-msg" id="status-msg"></p>
+        <div class="error" id="error-box"></div>
+      </div>
+
+      <div class="card" id="results-card" style="display:none">
+        <h2>Preview</h2>
+        <div class="preview-tabs" id="preview-tabs"></div>
+        <div id="preview-content"></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const API = window.location.origin;
+    const OUTPUTS = [
+      { id: 'blog', label: 'Blog' },
+      { id: 'linkedin', label: 'LinkedIn' },
+      { id: 'email', label: 'Email' },
+      { id: 'community_snippet', label: 'Community Snippet' },
+      { id: 'shorts', label: 'Shorts' },
+      { id: 'carousel', label: 'Carousel' },
+      { id: 'seo_pack', label: 'SEO Pack' },
+    ];
+    let sourceMode = 'idea';
+    let result = null;
+
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+
+    function init() {
+      const checks = $('#output-checks');
+      OUTPUTS.forEach((o) => {
+        const checked = ['blog', 'linkedin', 'email', 'community_snippet'].includes(o.id);
+        checks.innerHTML += `<label><input type="checkbox" value="${o.id}" ${checked ? 'checked' : ''}> ${o.label}</label>`;
+      });
+
+      fetch(API + '/health').then((r) => r.json()).then((d) => {
+        $('#api-dot').classList.add('ok');
+        $('#api-status').textContent = 'API connected';
+      }).catch(() => {
+        $('#api-dot').classList.add('err');
+        $('#api-status').textContent = 'API offline — run .\\run-api.bat';
+      });
+
+      $$('#source-tabs .tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          sourceMode = tab.dataset.source;
+          $$('#source-tabs .tab').forEach((t) => t.classList.remove('active'));
+          tab.classList.add('active');
+          $$('.pane').forEach((p) => p.classList.remove('active'));
+          $('#pane-' + sourceMode).classList.add('active');
+        });
+      });
+
+      $('#generate-btn').addEventListener('click', generate);
+    }
+
+    function getOutputs() {
+      return [...$$('#output-checks input:checked')].map((c) => c.value);
+    }
+
+    function getBrand() {
+      return {
+        tone: $('#tone').value,
+        industry: $('#industry').value,
+        audience: $('#audience').value,
+        brand_primary: $('#brand-primary').value,
+        brand_secondary: $('#brand-secondary').value,
+        cta_style: $('#cta-style').value,
+        writing_style: 'Educational',
+        outputs: getOutputs(),
+        generate_visuals: $('#generate-visuals').checked,
+      };
+    }
+
+    async function generate() {
+      const btn = $('#generate-btn');
+      const err = $('#error-box');
+      const status = $('#status-msg');
+      err.style.display = 'none';
+      btn.disabled = true;
+      status.textContent = 'Generating… this may take 30–90 seconds';
+
+      try {
+        const brand = getBrand();
+        let res;
+
+        if (sourceMode === 'idea') {
+          const idea = $('#idea-text').value.trim();
+          if (!idea) throw new Error('Enter your content idea first.');
+          res = await fetch(API + '/generate-idea', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idea, ...brand }),
+          });
+        } else {
+          const fd = new FormData();
+          Object.entries(brand).forEach(([k, v]) => {
+            if (k === 'outputs') fd.append('outputs', JSON.stringify(v));
+            else if (k === 'generate_visuals') fd.append('generate_visuals', v ? 'true' : 'false');
+            else fd.append(k, v);
+          });
+          if (sourceMode === 'youtube') {
+            const url = $('#youtube-url').value.trim();
+            if (!url) throw new Error('Enter a video URL.');
+            fd.append('youtube_url', url);
+          } else if (sourceMode === 'blog') {
+            const url = $('#blog-url').value.trim();
+            if (!url) throw new Error('Enter a blog URL.');
+            fd.append('blog_url', url);
+          } else {
+            const file = $('#file-input').files[0];
+            if (!file) throw new Error('Choose a file to upload.');
+            fd.append('file', file);
+          }
+          res = await fetch(API + '/repurpose', { method: 'POST', body: fd });
+        }
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Generation failed');
+        result = data;
+        renderPreview();
+        status.textContent = 'Done!';
+        $('#results-card').style.display = 'block';
+      } catch (e) {
+        err.textContent = e.message;
+        err.style.display = 'block';
+        status.textContent = '';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function renderPreview() {
+      if (!result) return;
+      const tabs = $('#preview-tabs');
+      const content = $('#preview-content');
+      tabs.innerHTML = '';
+      content.innerHTML = '';
+
+      const panes = [];
+      if (result.blog) panes.push({ id: 'blog', label: 'Blog', html: renderBlog(result.blog) });
+      if (result.linkedin_posts?.length) panes.push({ id: 'linkedin', label: 'LinkedIn', html: renderLinkedIn(result.linkedin_posts) });
+      if (result.email_newsletter) panes.push({ id: 'email', label: 'Email', html: renderEmail(result.email_newsletter) });
+      if (result.community_snippet) panes.push({ id: 'snippet', label: 'Community', html: renderSnippet(result.community_snippet) });
+
+      panes.forEach((p, i) => {
+        tabs.innerHTML += `<button type="button" class="preview-tab ${i === 0 ? 'active' : ''}" data-pane="${p.id}">${p.label}</button>`;
+        content.innerHTML += `<div class="preview-pane ${i === 0 ? 'active' : ''}" id="preview-${p.id}">${p.html}</div>`;
+      });
+
+      $$('.preview-tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          $$('.preview-tab').forEach((t) => t.classList.remove('active'));
+          $$('.preview-pane').forEach((p) => p.classList.remove('active'));
+          tab.classList.add('active');
+          $('#preview-' + tab.dataset.pane).classList.add('active');
+        });
+      });
+    }
+
+    function renderBlog(blog) {
+      let html = `<div class="article"><h1>${esc(blog.title)}</h1>`;
+      html += `<p class="meta">Slug: ${esc(blog.slug)} · ${esc(blog.meta_title)}</p>`;
+      (blog.content_blocks || []).forEach((b) => {
+        if (b.type === 'hero' || b.type === 'intro') html += `<h2>${esc(b.heading)}</h2><p>${esc(b.content)}</p>`;
+        else if (b.type === 'h2' || b.type === 'h3') html += `<${b.type}>${esc(b.heading)}</${b.type}>`;
+        else if (b.type === 'paragraph') html += `<p>${esc(b.content)}</p>`;
+        else if (b.type === 'bullet_list' || b.type === 'key_takeaways') html += `<ul>${(b.items || []).map((i) => `<li>${esc(i)}</li>`).join('')}</ul>`;
+        else if (b.type === 'faq') html += `<p><strong>${esc(b.question)}</strong><br>${esc(b.answer)}</p>`;
+        else if (b.type === 'cta') html += `<p><a class="cta-btn" href="${esc(b.button_url)}">${esc(b.button_text)}</a></p>`;
+      });
+      return html + '</div>';
+    }
+
+    function renderLinkedIn(posts) {
+      return posts.map((p, i) => `<div style="margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:6px"><strong>Post ${i + 1}</strong><p>${esc(p)}</p></div>`).join('');
+    }
+
+    function renderEmail(email) {
+      return `<p><strong>Subject:</strong> ${esc(email.subject)}</p><div style="white-space:pre-wrap">${esc(email.body)}</div>`;
+    }
+
+    function renderSnippet(s) {
+      return `<div class="snippet-box"><h3>${esc(s.headline)}</h3><p>${esc(s.teaser)}</p><p class="meta">${(s.hashtags || []).map((h) => '#' + esc(h)).join(' ')}</p><a class="cta-btn" href="#">${esc(s.cta_text || 'Read more')}</a></div>`;
+    }
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = s || '';
+      return d.innerHTML;
+    }
+
+    init();
+  </script>
+</body>
+</html>
