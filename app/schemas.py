@@ -19,6 +19,14 @@ class BrandSettings(BaseModel):
         Literal["blog", "linkedin", "email", "shorts", "carousel", "seo_pack", "community_snippet"]
     ] = Field(default=["blog", "linkedin", "email"])
     cta_style: str = "Direct"
+    image_style: str = "mixed"
+
+    @field_validator("image_style")
+    @classmethod
+    def validate_image_style(cls, value: str) -> str:
+        allowed = {"mixed", "illustration", "photo"}
+        normalized = (value or "mixed").strip().lower()
+        return normalized if normalized in allowed else "mixed"
 
     @field_validator("brand_primary", "brand_secondary")
     @classmethod

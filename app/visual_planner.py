@@ -90,13 +90,49 @@ def _block_summary(blocks: list[dict]) -> dict[str, Any]:
 
 
 
+def _image_style_guide(style: str) -> str:
+    guides = {
+        "mixed": (
+            "MIXED style — vary by role:\n"
+            "- featured_image, email_banner: photorealistic professional photography\n"
+            "- section_illustration: alternate photorealistic scenes AND clean editorial illustrations\n"
+            "- social_graphic, carousel_visual: bold branded graphic design with light backgrounds, "
+            "subtle photo or illustration accents, space for text overlay\n"
+            "- faq_illustration: simple flat icons\n"
+            "- quote_background: soft abstract editorial texture, no text"
+        ),
+        "illustration": (
+            "ILLUSTRATION style for all assets — flat editorial illustration, vector-style, "
+            "no photorealism, no stock-photo look"
+        ),
+        "photo": (
+            "PHOTO style for all assets — photorealistic professional photography, natural lighting, "
+            "real-world scenes, no cartoon or flat illustration"
+        ),
+    }
+    return guides.get(style, guides["mixed"])
+
+
+def _carousel_slide_summary(content: dict) -> list[dict]:
+    carousel = content.get("carousel") or {}
+    slides = carousel.get("slides", []) if isinstance(carousel, dict) else []
+    summary = []
+    for slide in slides[:9]:
+        if not isinstance(slide, dict):
+            continue
+        summary.append(
+            {
+                "slide": slide.get("slide"),
+                "type": slide.get("type", "body"),
+                "headline": (slide.get("headline") or "")[:120],
+            }
+        )
+    return summary
+
+
 def plan_visuals(content: dict, settings: BrandSettings) -> dict:
-
     if not os.getenv("OPENAI_API_KEY"):
-
         raise ValueError("OPENAI_API_KEY is not set.")
-
-
 
     blog = content.get("blog", {})
 
@@ -105,8 +141,8 @@ def plan_visuals(content: dict, settings: BrandSettings) -> dict:
     outputs = settings.outputs
 
     summary = _block_summary(blocks)
-
-
+    carousel_slides = _carousel_slide_summary(content)
+    style_guide = _image_style_guide(settings.image_style)
 
     prompt = f"""
 
@@ -145,10 +181,11 @@ Analyze this content and plan block-mapped AI image assets. Return ONLY valid JS
 Brand: {settings.industry} | {settings.audience} | {settings.tone}
 
 Colors: {settings.brand_primary}, {settings.brand_secondary}
-
+Image style: {settings.image_style}
 Outputs: {outputs}
 
-
+IMAGE STYLE RULES:
+{style_guide}
 
 RULES:
 
@@ -156,32 +193,26 @@ RULES:
 
 - section_illustration per H2 (max {len(summary['h2s'])}), prompt must match each H2 topic
 
-- quote_background per quote (max {len(summary['quotes'])}), minimal editorial, NO text
+- quote_background per quote (max {len(summary['quotes'])}), minimal editorial, NO text in image
 
 - faq_illustration per FAQ (max {len(summary['faqs'])}), simple icon style
 
 - social_graphic max 3 if linkedin in outputs
 
-- community_snippet: 1 CTA-style social graphic with headline text overlay if community_snippet in outputs
+- community_snippet: 1 CTA-style social graphic if community_snippet in outputs
 
 - email_banner if email in outputs
 
-- carousel_visual slides 1-3 if carousel in outputs
+- carousel_visual for slides 1, 2, 3, and 9 if carousel in outputs (square, light branded background, social carousel slide design, NO text baked into image — leave clean space for headline overlay)
 
 - shorts_thumbnail indices 0-2 if shorts in outputs
 
-
-
 H2s: {json.dumps(summary['h2s'])}
-
 Quotes: {json.dumps(summary['quotes'])}
-
 FAQs: {json.dumps(summary['faqs'])}
-
+Carousel slides: {json.dumps(carousel_slides)}
 Title: {blog.get('title', '')}
-
 Meta: {blog.get('meta_description', '')}
-
 """
 
 
