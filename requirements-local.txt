@@ -1,11 +1,11 @@
-# Lighter local install — uses OpenAI Whisper API (CE_TRANSCRIBE_MODE=openai)
-# Skips openai-whisper / PyTorch (~2GB download on Windows)
 fastapi
 uvicorn
 python-dotenv
 openai
+openai-whisper
 pydantic
 python-multipart
 yt-dlp
 youtube-transcript-api>=1.0.0,<2
 trafilatura>=1.6.0
+pypdf>=4.0.0
