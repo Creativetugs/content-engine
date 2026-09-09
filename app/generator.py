@@ -178,6 +178,30 @@ def _build_brand_rules(settings: BrandSettings) -> str:
         else ""
     )
 
+    kit = settings.brand_kit if isinstance(settings.brand_kit, dict) else {}
+    kit_block = ""
+    if kit:
+        topics = kit.get("topics") or []
+        keywords = kit.get("seo_keywords") or []
+        if isinstance(topics, list):
+            topics_s = ", ".join(str(t) for t in topics[:12])
+        else:
+            topics_s = str(topics)
+        if isinstance(keywords, list):
+            keywords_s = ", ".join(str(k) for k in keywords[:15])
+        else:
+            keywords_s = str(keywords)
+        kit_block = f"""
+Researched company brand kit (from website — treat as ground truth, do not invent):
+- Company: {kit.get('company_name') or 'Unknown'}
+- Website: {settings.website_url or kit.get('source_url') or ''}
+- Company gist: {kit.get('company_gist') or ''}
+- Core topics: {topics_s}
+- SEO keywords to weave naturally: {keywords_s}
+- Voice notes: {kit.get('voice_notes') or ''}
+- Visual style notes: {kit.get('visual_style_notes') or ''}
+"""
+
     return f"""
 Brand context (apply to ALL generated content):
 - Tone: {settings.tone}
@@ -187,7 +211,8 @@ Brand context (apply to ALL generated content):
 - Writing style: {settings.writing_style}
 - Brand primary color: {settings.brand_primary}
 - Brand secondary color: {settings.brand_secondary}
-
+- Website URL: {settings.website_url or '(not set)'}
+{kit_block}
 Brand rules:
 - Write specifically for the {settings.industry} industry using appropriate terminology
 - Speak directly to: {settings.audience}
@@ -196,6 +221,15 @@ Brand rules:
 - Content should feel on-brand for a company using these colors (professional, cohesive voice)
 - Only generate these output types: {output_labels}
 {length_line}
+
+SEO & quality standards (mandatory):
+- Write like a senior industry specialist, NOT generic ChatGPT filler
+- Lead with search intent: clear H1/title, scannable H2s, practical depth, specific examples
+- Prefer facts from the source material and brand kit; never invent certifications, specs, or case studies
+- Use industry-standard terminology; define jargon once when helpful
+- Include natural keyword use from the brand kit without stuffing
+- Structure for SEO: intro → problem/context → how it works → benefits/applications → FAQ/CTA where relevant
+- Meta title < 60 chars, meta description < 160 chars, actionable slug
 """
 
 
